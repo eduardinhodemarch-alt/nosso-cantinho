@@ -324,8 +324,9 @@ input,textarea{font:inherit;color:inherit}
 
     <form id="login-form" novalidate>
       <div class="field">
-        <label for="email">E-mail</label>
-        <input id="email" type="email" inputmode="email" autocomplete="username"
+        <label for="email">E-mail ou usuário</label>
+        <input id="email" type="text" inputmode="email" autocomplete="username"
+               autocapitalize="none" spellcheck="false"
                placeholder="voce@exemplo.com" required>
       </div>
       <div class="field">
@@ -488,44 +489,39 @@ input,textarea{font:inherit;color:inherit}
   <div class="reactbar" id="reactbar" role="menu" aria-label="Reagir"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <script>
-/* ============================================================
-   ESTADO — protótipo em memória.
-   Na versão real, tudo abaixo vem do Supabase (ver config.js).
-   ============================================================ */
-const ME    = { id:'me',   nome:'Sol', emoji:'☀️' };
-const PEER  = { id:'peer', nome:'Lua', emoji:'🌙' };
+/* =============================================================
+   Nosso Cantinho — versão conectada ao Supabase.
+   Precisa do config.js ao lado deste arquivo.
+   ============================================================= */
+
+const sb = window.supabase.createClient(
+  APP_CONFIG.SUPABASE_URL,
+  APP_CONFIG.SUPABASE_ANON_KEY,
+  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } }
+);
+
+const SPACE = APP_CONFIG.SPACE_ID;
+
+let ME   = { id:null, nome:'Você',  emoji:'☀️' };
+let PEER = { id:null, nome:'...',   emoji:'🌙' };
+let msgs = [];
+let minhaAtividade = 'em_casa';
+let canal = null;
+const urlsAssinadas = new Map();   // path -> { url, expira }
 
 const ATIVIDADES = [
-  { id:'jantando',   emoji:'🍝', label:'jantando',   hint:'some em 2 horas' },
-  { id:'cozinhando', emoji:'🍳', label:'cozinhando', hint:'some em 2 horas' },
-  { id:'treinando',  emoji:'🏃', label:'treinando',  hint:'some em 2 horas' },
-  { id:'dormindo',   emoji:'😴', label:'dormindo',   hint:'some ao amanhecer' },
-  { id:'em_casa',    emoji:'🏠', label:'em casa',    hint:'fica até você mudar' }
+  { id:'jantando',   emoji:'🍝', label:'jantando',   horas:2 },
+  { id:'cozinhando', emoji:'🍳', label:'cozinhando', horas:2 },
+  { id:'treinando',  emoji:'🏃', label:'treinando',  horas:2 },
+  { id:'dormindo',   emoji:'😴', label:'dormindo',   horas:9 },
+  { id:'em_casa',    emoji:'🏠', label:'em casa',    horas:null }
 ];
-
 const FIGURINHAS = ['🥰','🤗','😘','🫶','🌻','☕','🍜','🌙','✨','🐈','🧸','🎈','🫧','🍯','🪴','💌'];
 const REACOES    = ['❤️','😂','😮','🥺','👍','🔥'];
 
-let msgs = [
-  { id:1, de:'peer', tipo:'texto', texto:'Cheguei. O trânsito estava impossível.', hora:'19:12', reacoes:[] },
-  { id:2, de:'me',   tipo:'texto', texto:'Já pus a água no fogo. Chega e come.',   hora:'19:13', reacoes:[{emoji:'❤️',por:['peer']}] },
-  { id:3, de:'peer', tipo:'sticker', texto:'🥰', hora:'19:13', reacoes:[] },
-  { id:4, de:'me',   tipo:'texto', texto:'Trouxe aquele pão da padaria da esquina.', hora:'19:14', reacoes:[] },
-  { id:5, de:'peer', tipo:'texto', texto:'Você é a melhor pessoa deste prédio.', hora:'19:15', reacoes:[{emoji:'😂',por:['me']}] }
-];
-let proximoId = 6;
-let minhaAtividade = 'em_casa';
-
-const DATAS = [
-  { titulo:'Nosso aniversário de namoro', data:'2026-11-09', tipo:'Seis anos' },
-  { titulo:'Aniversário da Lua',          data:'2026-12-02', tipo:'Ela vai negar que liga' },
-  { titulo:'Viagem pra serra',            data:'2027-01-16', tipo:'Já pagamos a pousada' }
-];
-
-/* ============================================================
-   ARMAZENAMENTO LEVE (tema). Falha em silêncio se bloqueado.
-   ============================================================ */
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch { return null; } },
   set(k,v){ try { localStorage.setItem(k,v); } catch {} }
@@ -534,26 +530,24 @@ const store = {
 /* ============================================================
    TEMA
    ============================================================ */
-const CORES_BARRA = { rosa:'#e0557f', roxo:'#7c5cd6', verde:'#2f9e6e', azul:'#3b7fd4' };
-const CORES_BARRA_DARK = { rosa:'#201a1e', roxo:'#1c1927', verde:'#18211c', azul:'#171f28' };
+const BARRA       = { rosa:'#e0557f', roxo:'#7c5cd6', verde:'#2f9e6e', azul:'#3b7fd4' };
+const BARRA_DARK  = { rosa:'#201a1e', roxo:'#1c1927', verde:'#18211c', azul:'#171f28' };
 
-function aplicarTema(tema){
+function aplicarTema(tema, salvarNoBanco = false){
   document.documentElement.dataset.theme = tema;
   store.set('tema', tema);
   const escuro = document.documentElement.dataset.scheme === 'dark';
   document.querySelector('meta[name=theme-color]')
-    .setAttribute('content', escuro ? CORES_BARRA_DARK[tema] : CORES_BARRA[tema]);
-  document.getElementById('theme-name').textContent =
-    tema.charAt(0).toUpperCase() + tema.slice(1);
+    .setAttribute('content', escuro ? BARRA_DARK[tema] : BARRA[tema]);
+  document.getElementById('theme-name').textContent = tema[0].toUpperCase() + tema.slice(1);
   document.querySelectorAll('[data-theme-value]').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.themeValue === tema)));
+  if (salvarNoBanco && ME.id) sb.from('profiles').update({ theme: tema }).eq('id', ME.id);
 }
 
-function aplicarEsquema(modo){ // 'light' | 'dark' | 'auto'
+function aplicarEsquema(modo){
   const auto = modo === 'auto';
-  const escuro = auto
-    ? matchMedia('(prefers-color-scheme: dark)').matches
-    : modo === 'dark';
+  const escuro = auto ? matchMedia('(prefers-color-scheme: dark)').matches : modo === 'dark';
   document.documentElement.dataset.scheme = escuro ? 'dark' : 'light';
   store.set('esquema', modo);
   const btn = document.getElementById('btn-scheme');
@@ -563,42 +557,217 @@ function aplicarEsquema(modo){ // 'light' | 'dark' | 'auto'
 }
 
 /* ============================================================
-   RENDER DAS MENSAGENS
+   LOGIN
+   ============================================================ */
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const campo = document.getElementById('email').value.trim();
+  const senha = document.getElementById('senha').value;
+  const erro  = document.getElementById('login-error');
+  const botao = e.target.querySelector('button[type=submit]');
+
+  erro.classList.remove('is-on');
+  if (!campo || !senha){
+    erro.textContent = 'Preencha os dois campos.';
+    erro.classList.add('is-on');
+    return;
+  }
+
+  botao.disabled = true; botao.textContent = 'Entrando…';
+  try {
+    let email = campo;
+
+    // Login por nome de usuário: ligue depois de rodar login-por-usuario.sql
+    if (APP_CONFIG.LOGIN_POR_USUARIO && !campo.includes('@')){
+      const { data } = await sb.rpc('email_do_usuario', { p_username: campo.toLowerCase() });
+      email = data;
+    }
+
+    const { error } = email
+      ? await sb.auth.signInWithPassword({ email, password: senha })
+      : { error: true };
+
+    if (error){
+      erro.textContent = 'Não confere. Verifique e tente de novo.';
+      erro.classList.add('is-on');
+      return;
+    }
+
+    document.getElementById('senha').value = '';
+    await entrar();
+  } catch {
+    erro.textContent = 'Sem conexão com o servidor.';
+    erro.classList.add('is-on');
+  } finally {
+    botao.disabled = false; botao.textContent = 'Entrar';
+  }
+});
+
+document.getElementById('btn-logout').onclick = async () => {
+  if (canal) { sb.removeChannel(canal); canal = null; }
+  await sb.auth.signOut();
+  msgs = []; ME.id = null;
+  irPara('login');
+};
+
+/* ============================================================
+   ENTRADA: perfis, histórico, realtime
+   ============================================================ */
+async function entrar(){
+  const { data:{ user } } = await sb.auth.getUser();
+  if (!user) return irPara('login');
+  ME.id = user.id;
+
+  await carregarPerfis();
+  await carregarMensagens();
+  await carregarAtividades();
+  await carregarDatas();
+  abrirCanal();
+  irPara('chat');
+}
+
+async function carregarPerfis(){
+  const { data } = await sb.from('profiles').select('id, display_name, theme, bio');
+  if (!data) return;
+  const meu   = data.find(p => p.id === ME.id);
+  const outro = data.find(p => p.id !== ME.id);
+  if (meu){
+    ME.nome = meu.display_name;
+    document.getElementById('me-name').textContent  = meu.display_name;
+    document.getElementById('set-name').textContent = meu.display_name;
+    if (meu.bio) document.getElementById('me-bio').textContent = meu.bio;
+    if (meu.theme) aplicarTema(meu.theme);
+  }
+  if (outro){
+    PEER.id = outro.id;
+    PEER.nome = outro.display_name;
+    document.getElementById('peer-name').textContent = outro.display_name;
+  }
+}
+
+async function carregarMensagens(){
+  const { data } = await sb
+    .from('messages')
+    .select('id, sender_id, kind, body, sticker_id, created_at, message_attachments(path), message_reactions(emoji, user_id)')
+    .eq('space_id', SPACE)
+    .is('deleted_at', null)
+    .order('created_at', { ascending:true })
+    .limit(300);
+  msgs = await Promise.all((data || []).map(normalizar));
+  renderMensagens();
+}
+
+async function normalizar(m){
+  const item = {
+    id: m.id,
+    de: m.sender_id === ME.id ? 'me' : 'peer',
+    tipo: { text:'texto', image:'foto', sticker:'sticker' }[m.kind] || 'texto',
+    texto: m.kind === 'sticker' ? m.sticker_id : m.body,
+    hora: new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    reacoes: agrupar(m.message_reactions || [])
+  };
+  const path = m.message_attachments?.[0]?.path;
+  if (path) item.url = await urlDaFoto(path);
+  return item;
+}
+
+function agrupar(linhas){
+  const mapa = new Map();
+  linhas.forEach(r => {
+    if (!mapa.has(r.emoji)) mapa.set(r.emoji, { emoji:r.emoji, por:[] });
+    mapa.get(r.emoji).por.push(r.user_id === ME.id ? 'me' : 'peer');
+  });
+  return [...mapa.values()];
+}
+
+/* ============================================================
+   REALTIME
+   ============================================================ */
+function abrirCanal(){
+  if (canal) sb.removeChannel(canal);
+  canal = sb.channel('cantinho:' + SPACE)
+    .on('postgres_changes',
+        { event:'INSERT', schema:'public', table:'messages', filter:'space_id=eq.' + SPACE },
+        async ({ new:m }) => {
+          if (msgs.some(x => x.id === m.id)) return;
+          const { data } = await sb.from('messages')
+            .select('id, sender_id, kind, body, sticker_id, created_at, message_attachments(path), message_reactions(emoji, user_id)')
+            .eq('id', m.id).single();
+          if (data){ msgs.push(await normalizar(data)); renderMensagens(); tocar(data.sender_id); }
+        })
+    .on('postgres_changes',
+        { event:'*', schema:'public', table:'message_reactions' },
+        () => recarregarReacoes())
+    .on('postgres_changes',
+        { event:'*', schema:'public', table:'user_activities' },
+        () => carregarAtividades())
+    .subscribe();
+
+  // O Realtime cai quando o app vai para segundo plano. Ao voltar,
+  // reconecta e busca o que chegou no intervalo.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && ME.id){
+      abrirCanal();
+      await carregarMensagens();
+      await carregarAtividades();
+    }
+  });
+}
+
+function tocar(remetente){
+  if (remetente !== ME.id && navigator.vibrate) navigator.vibrate(18);
+}
+
+async function recarregarReacoes(){
+  const ids = msgs.map(m => m.id);
+  if (!ids.length) return;
+  const { data } = await sb.from('message_reactions')
+    .select('message_id, emoji, user_id').in('message_id', ids);
+  const porMsg = new Map();
+  (data || []).forEach(r => {
+    if (!porMsg.has(r.message_id)) porMsg.set(r.message_id, []);
+    porMsg.get(r.message_id).push(r);
+  });
+  msgs.forEach(m => { m.reacoes = agrupar(porMsg.get(m.id) || []); });
+  renderMensagens();
+}
+
+/* ============================================================
+   RENDER
    ============================================================ */
 const elMsgs = document.getElementById('messages');
 
 function renderMensagens(){
+  const perto = elMsgs.scrollHeight - elMsgs.scrollTop - elMsgs.clientHeight < 120;
   elMsgs.innerHTML = '<div class="daysep">Hoje</div>';
+
   msgs.forEach((m, i) => {
     const minha = m.de === 'me';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;max-width:86%;align-self:' +
+                         (minha ? 'flex-end' : 'flex-start');
+
     const row = document.createElement('div');
     row.className = 'row ' + (minha ? 'mine' : 'theirs');
     if (i > 0 && msgs[i-1].de !== m.de) row.classList.add('gap');
-    row.dataset.id = m.id;
 
     const b = document.createElement('div');
-    b.className = 'bubble' + (m.tipo === 'sticker' ? ' sticker' : '') + (m.tipo === 'foto' ? ' photo' : '');
-
+    b.className = 'bubble' + (m.tipo === 'sticker' ? ' sticker' : '')
+                           + (m.tipo === 'foto' ? ' photo' : '');
     if (m.tipo === 'foto'){
       const img = document.createElement('img');
-      img.src = m.url; img.alt = 'Foto enviada'; img.loading = 'lazy';
+      img.src = m.url || ''; img.alt = 'Foto'; img.loading = 'lazy';
       b.appendChild(img);
     } else {
-      b.appendChild(document.createTextNode(m.texto));
+      b.appendChild(document.createTextNode(m.texto || ''));
     }
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = m.hora + (minha ? '  ✓✓' : '');
+    meta.textContent = m.hora + (minha ? (m.pendente ? '  ⏱' : '  ✓✓') : '');
     b.appendChild(meta);
 
     row.appendChild(b);
-
-    const wrap = document.createElement('div');
-    wrap.style.display = 'flex';
-    wrap.style.flexDirection = 'column';
-    wrap.style.alignSelf = minha ? 'flex-end' : 'flex-start';
-    wrap.style.maxWidth = '86%';
     wrap.appendChild(row);
 
     if (m.reacoes.length){
@@ -615,27 +784,93 @@ function renderMensagens(){
       wrap.appendChild(rs);
     }
 
-    ligarToqueLongo(row, m.id);
+    if (!m.pendente) ligarToqueLongo(row, m.id);
     elMsgs.appendChild(wrap);
   });
-  elMsgs.scrollTop = elMsgs.scrollHeight;
-}
 
-function agora(){
-  return new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-}
-
-function enviar(tipo, conteudo){
-  const m = { id: proximoId++, de:'me', tipo, hora: agora(), reacoes:[] };
-  if (tipo === 'foto') m.url = conteudo; else m.texto = conteudo;
-  msgs.push(m);
-  renderMensagens();
-  // Na versão real: supabase.rpc('send_message', {...}) e o Realtime
-  // devolve a mensagem confirmada, que substitui esta pelo client_id.
+  if (perto) elMsgs.scrollTop = elMsgs.scrollHeight;
 }
 
 /* ============================================================
-   REAÇÕES — toque longo abre a barra
+   ENVIO
+   ============================================================ */
+async function enviar({ kind, body = null, sticker_id = null, path = null, mime = null }){
+  const client_id = crypto.randomUUID();
+
+  // aparece na hora, antes da ida ao servidor
+  const provisoria = {
+    id: 'tmp-' + client_id,
+    de: 'me',
+    tipo: { text:'texto', image:'foto', sticker:'sticker' }[kind],
+    texto: kind === 'sticker' ? sticker_id : body,
+    hora: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    reacoes: [], pendente: true
+  };
+  if (path) provisoria.url = await urlDaFoto(path);
+  msgs.push(provisoria);
+  renderMensagens();
+
+  const { data, error } = await sb.from('messages')
+    .insert({ space_id:SPACE, sender_id:ME.id, kind, body, sticker_id, client_id })
+    .select('id, created_at').single();
+
+  if (error){
+    provisoria.pendente = false;
+    provisoria.texto = (provisoria.texto || '') + '  ⚠ não enviou';
+    renderMensagens();
+    return;
+  }
+
+  if (path){
+    await sb.from('message_attachments')
+      .insert({ message_id:data.id, bucket:'media', path, mime });
+  }
+
+  // troca a provisória pela real
+  const idx = msgs.findIndex(x => x.id === provisoria.id);
+  if (idx > -1){ msgs[idx].id = data.id; msgs[idx].pendente = false; }
+  renderMensagens();
+}
+
+/* ============================================================
+   FOTOS
+   ============================================================ */
+async function urlDaFoto(path){
+  const cache = urlsAssinadas.get(path);
+  if (cache && cache.expira > Date.now()) return cache.url;
+  const { data } = await sb.storage.from('media').createSignedUrl(path, 3600);
+  if (!data) return '';
+  urlsAssinadas.set(path, { url:data.signedUrl, expira: Date.now() + 3300000 });
+  return data.signedUrl;
+}
+
+async function comprimir(file, max = 1600, q = 0.8){
+  const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
+  const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width  = Math.round(bmp.width  * escala);
+  c.height = Math.round(bmp.height * escala);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/webp', q));
+}
+
+async function mandarFoto(file){
+  let blob, mime = 'image/webp', ext = 'webp';
+  try { blob = await comprimir(file); }
+  catch { blob = file; mime = file.type || 'image/jpeg'; ext = 'jpg'; }  // HEIC que não decodifica
+
+  const ano  = new Date().getFullYear();
+  const path = SPACE + '/' + ano + '/' + crypto.randomUUID() + '.' + ext;
+
+  const { error } = await sb.storage.from('media')
+    .upload(path, blob, { contentType:mime, upsert:false });
+  if (error){ alert('A foto não subiu. Tente de novo.'); return; }
+
+  await enviar({ kind:'image', path, mime });
+}
+
+/* ============================================================
+   REAÇÕES
    ============================================================ */
 const elReactbar = document.getElementById('reactbar');
 let alvoReacao = null;
@@ -643,23 +878,17 @@ let alvoReacao = null;
 REACOES.forEach(e => {
   const b = document.createElement('button');
   b.textContent = e; b.setAttribute('role','menuitem');
-  b.onclick = () => { if (alvoReacao != null) alternarReacao(alvoReacao, e); fecharReactbar(); };
+  b.onclick = () => { if (alvoReacao) alternarReacao(alvoReacao, e); fecharReactbar(); };
   elReactbar.appendChild(b);
 });
 
 function ligarToqueLongo(el, id){
   let t;
-  const inicia = (ev) => {
-    t = setTimeout(() => {
-      if (navigator.vibrate) navigator.vibrate(12);
-      abrirReactbar(el, id);
-    }, 420);
-  };
-  const cancela = () => clearTimeout(t);
-  el.addEventListener('pointerdown', inicia);
-  el.addEventListener('pointerup', cancela);
-  el.addEventListener('pointerleave', cancela);
-  el.addEventListener('pointercancel', cancela);
+  el.addEventListener('pointerdown', () => {
+    t = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(12); abrirReactbar(el, id); }, 420);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev =>
+    el.addEventListener(ev, () => clearTimeout(t)));
   el.addEventListener('contextmenu', e => e.preventDefault());
 }
 
@@ -670,8 +899,7 @@ function abrirReactbar(el, id){
   elReactbar.classList.add('is-on');
   const larg = elReactbar.offsetWidth;
   let x = r.left - app.left + r.width/2 - larg/2;
-  x = Math.max(8, Math.min(x, app.width - larg - 8));
-  elReactbar.style.left = x + 'px';
+  elReactbar.style.left = Math.max(8, Math.min(x, app.width - larg - 8)) + 'px';
   elReactbar.style.top  = Math.max(8, r.top - app.top - 52) + 'px';
 }
 function fecharReactbar(){ elReactbar.classList.remove('is-on'); alvoReacao = null; }
@@ -679,20 +907,124 @@ document.addEventListener('pointerdown', e => {
   if (elReactbar.classList.contains('is-on') && !elReactbar.contains(e.target)) fecharReactbar();
 }, true);
 
-function alternarReacao(msgId, emoji){
-  const m = msgs.find(x => x.id === msgId); if (!m) return;
-  let r = m.reacoes.find(x => x.emoji === emoji);
-  if (!r){ m.reacoes.push({ emoji, por:['me'] }); }
-  else if (r.por.includes('me')){
-    r.por = r.por.filter(p => p !== 'me');
-    if (!r.por.length) m.reacoes = m.reacoes.filter(x => x !== r);
-  } else { r.por.push('me'); }
-  renderMensagens();
-  // Na versão real: insert/delete em message_reactions; o Realtime avisa o outro.
+async function alternarReacao(msgId, emoji){
+  if (String(msgId).startsWith('tmp-')) return;
+  const m = msgs.find(x => x.id === msgId);
+  const jaEhMinha = m?.reacoes.find(r => r.emoji === emoji && r.por.includes('me'));
+
+  if (jaEhMinha){
+    await sb.from('message_reactions').delete()
+      .match({ message_id:msgId, user_id:ME.id, emoji });
+  } else {
+    await sb.from('message_reactions')
+      .insert({ message_id:msgId, user_id:ME.id, emoji });
+  }
+  await recarregarReacoes();
 }
 
 /* ============================================================
-   SHEETS
+   ATIVIDADES
+   ============================================================ */
+async function carregarAtividades(){
+  const { data } = await sb.from('user_activities')
+    .select('user_id, activity, expires_at');
+  const agora = Date.now();
+
+  const minha = data?.find(a => a.user_id === ME.id);
+  if (minha && (!minha.expires_at || new Date(minha.expires_at) > agora)){
+    minhaAtividade = minha.activity;
+    const a = ATIVIDADES.find(x => x.id === minha.activity);
+    document.getElementById('my-act-emoji').textContent = a.emoji;
+    document.getElementById('my-act-label').textContent = a.label;
+  }
+
+  const dela = data?.find(a => a.user_id !== ME.id);
+  const status = document.getElementById('peer-status');
+  if (dela && (!dela.expires_at || new Date(dela.expires_at) > agora)){
+    const a = ATIVIDADES.find(x => x.id === dela.activity);
+    status.innerHTML = '<span>' + a.emoji + ' ' + a.label + '</span>';
+  } else {
+    status.innerHTML = '<span>online</span>';
+  }
+  renderAtividades();
+}
+
+const actList = document.getElementById('act-list');
+function renderAtividades(){
+  actList.innerHTML = '';
+  ATIVIDADES.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'act';
+    b.setAttribute('aria-pressed', String(a.id === minhaAtividade));
+    b.innerHTML = '<span class="emoji">' + a.emoji + '</span><span>' + a.label +
+      '<small>' + (a.horas ? 'some em ' + a.horas + 'h' : 'fica até você mudar') + '</small></span>';
+    b.onclick = async () => {
+      const expira = a.horas ? new Date(Date.now() + a.horas*3600000).toISOString() : null;
+      await sb.from('user_activities').upsert({
+        user_id: ME.id, space_id: SPACE, activity: a.id,
+        started_at: new Date().toISOString(), expires_at: expira,
+        updated_at: new Date().toISOString()
+      });
+      minhaAtividade = a.id;
+      document.getElementById('my-act-emoji').textContent = a.emoji;
+      document.getElementById('my-act-label').textContent = a.label;
+      renderAtividades(); fecharSheets();
+    };
+    actList.appendChild(b);
+  });
+}
+
+/* ============================================================
+   DATAS
+   ============================================================ */
+function diasAte(iso){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  let alvo = new Date(iso + 'T00:00:00');
+  if (alvo < hoje) alvo.setFullYear(hoje.getFullYear() + 1);   // recorrência anual
+  return Math.round((alvo - hoje) / 86400000);
+}
+
+async function carregarDatas(){
+  const { data } = await sb.from('important_dates')
+    .select('id, title, date, kind').eq('space_id', SPACE);
+  const el = document.getElementById('dates-list');
+  el.innerHTML = '';
+
+  if (!data || !data.length){
+    el.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft)">' +
+      'Nenhuma data ainda. Comece pela mais óbvia.</div>';
+    return;
+  }
+
+  data.sort((a,b) => diasAte(a.date) - diasAte(b.date)).forEach(d => {
+    const n = diasAte(d.date);
+    const card = document.createElement('div');
+    card.className = 'card date-card';
+    card.innerHTML =
+      '<div class="date-count"><b>' + (n === 0 ? 'hoje' : n) + '</b>' +
+      (n === 0 ? '' : '<span>' + (n === 1 ? 'dia' : 'dias') + '</span>') + '</div>' +
+      '<div class="date-info"><strong></strong><span>' +
+      new Date(d.date + 'T00:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'long'}) +
+      ' · ' + d.kind + '</span></div>';
+    card.querySelector('strong').textContent = d.title;   // evita injeção de HTML
+    el.appendChild(card);
+  });
+}
+
+document.getElementById('btn-add-date').onclick = async () => {
+  const titulo = prompt('Qual é a data?');
+  if (!titulo) return;
+  const quando = prompt('Dia, no formato AAAA-MM-DD (ex: 2026-11-09)');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(quando || '')){ alert('Formato inválido.'); return; }
+  const { error } = await sb.from('important_dates')
+    .insert({ space_id:SPACE, title:titulo, date:quando, kind:'outro',
+              recurrence:'anual', created_by:ME.id });
+  if (error) alert('Não deu para salvar.');
+  else carregarDatas();
+};
+
+/* ============================================================
+   SHEETS, COMPOSER, NAVEGAÇÃO
    ============================================================ */
 const scrim = document.getElementById('scrim');
 function abrirSheet(id){
@@ -707,127 +1039,30 @@ function fecharSheets(){
 scrim.addEventListener('click', fecharSheets);
 document.addEventListener('keydown', e => { if (e.key === 'Escape'){ fecharSheets(); fecharReactbar(); } });
 
-/* figurinhas */
 const grid = document.getElementById('sticker-grid');
 FIGURINHAS.forEach(f => {
   const b = document.createElement('button');
-  b.className = 'sticker'; b.textContent = f; b.setAttribute('aria-label','Enviar figurinha ' + f);
-  b.onclick = () => { enviar('sticker', f); fecharSheets(); };
+  b.className = 'sticker'; b.textContent = f;
+  b.setAttribute('aria-label','Enviar figurinha ' + f);
+  b.onclick = () => { enviar({ kind:'sticker', sticker_id:f }); fecharSheets(); };
   grid.appendChild(b);
 });
 
-/* atividades */
-const actList = document.getElementById('act-list');
-function renderAtividades(){
-  actList.innerHTML = '';
-  ATIVIDADES.forEach(a => {
-    const b = document.createElement('button');
-    b.className = 'act';
-    b.setAttribute('aria-pressed', String(a.id === minhaAtividade));
-    b.innerHTML = '<span class="emoji">' + a.emoji + '</span><span>' + a.label +
-                  '<small>' + a.hint + '</small></span>';
-    b.onclick = () => {
-      minhaAtividade = a.id;
-      document.getElementById('my-act-emoji').textContent = a.emoji;
-      document.getElementById('my-act-label').textContent = a.label;
-      renderAtividades(); fecharSheets();
-      // Na versão real: upsert em user_activities com expires_at.
-    };
-    actList.appendChild(b);
-  });
-}
-
-/* tema rápido */
 const quick = document.getElementById('swatches-quick');
 ['rosa','roxo','verde','azul'].forEach(t => {
-  const cores = { rosa:['#fbd8e4','#e0557f'], roxo:['#e2d9fa','#7c5cd6'],
-                  verde:['#d2efe0','#2f9e6e'], azul:['#d6e6fa','#3b7fd4'] }[t];
-  const wrap = document.createElement('div');
-  wrap.innerHTML = '<button class="swatch" data-theme-value="' + t + '" style="background:' + cores[0] +
-    '"><i style="background:' + cores[1] + '"></i></button><div class="swatch-label">' +
-    t.charAt(0).toUpperCase() + t.slice(1) + '</div>';
-  quick.appendChild(wrap);
+  const c = { rosa:['#fbd8e4','#e0557f'], roxo:['#e2d9fa','#7c5cd6'],
+              verde:['#d2efe0','#2f9e6e'], azul:['#d6e6fa','#3b7fd4'] }[t];
+  const w = document.createElement('div');
+  w.innerHTML = '<button class="swatch" data-theme-value="' + t + '" style="background:' + c[0] +
+    '"><i style="background:' + c[1] + '"></i></button><div class="swatch-label">' +
+    t[0].toUpperCase() + t.slice(1) + '</div>';
+  quick.appendChild(w);
 });
 document.addEventListener('click', e => {
   const sw = e.target.closest('[data-theme-value]');
-  if (sw){ aplicarTema(sw.dataset.themeValue); }
+  if (sw) aplicarTema(sw.dataset.themeValue, true);
 });
 
-/* ============================================================
-   DATAS
-   ============================================================ */
-function diasAte(iso){
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const alvo = new Date(iso + 'T00:00:00');
-  return Math.round((alvo - hoje) / 86400000);
-}
-function renderDatas(){
-  const el = document.getElementById('dates-list');
-  el.innerHTML = '';
-  DATAS.slice().sort((a,b) => diasAte(a.data) - diasAte(b.data)).forEach(d => {
-    const n = diasAte(d.data);
-    const card = document.createElement('div');
-    card.className = 'card date-card';
-    card.innerHTML =
-      '<div class="date-count"><b>' + (n === 0 ? 'hoje' : n) + '</b>' +
-      (n === 0 ? '' : '<span>' + (n === 1 ? 'dia' : 'dias') + '</span>') + '</div>' +
-      '<div class="date-info"><strong>' + d.titulo + '</strong><span>' +
-      new Date(d.data + 'T00:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'long'}) +
-      ' · ' + d.tipo + '</span></div>';
-    el.appendChild(card);
-  });
-}
-
-/* ============================================================
-   NAVEGAÇÃO
-   ============================================================ */
-function irPara(tela){
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('is-active'));
-  document.getElementById('screen-' + tela).classList.add('is-active');
-  document.querySelectorAll('.tab').forEach(t =>
-    t.dataset.go === tela ? t.setAttribute('aria-current','page') : t.removeAttribute('aria-current'));
-  document.getElementById('tabbar').classList.toggle('is-hidden', tela === 'login');
-  if (tela === 'chat') elMsgs.scrollTop = elMsgs.scrollHeight;
-}
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => irPara(t.dataset.go));
-
-/* ============================================================
-   LOGIN (protótipo). Substituir pelo bloco Supabase em config.js.
-   ============================================================ */
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const senha = document.getElementById('senha').value;
-  const erro  = document.getElementById('login-error');
-
-  if (!email || !senha){
-    erro.textContent = 'Preencha e-mail e senha.';
-    erro.classList.add('is-on');
-    return;
-  }
-
-  /* ---------- VERSÃO REAL (descomente com o SDK carregado) ----------
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
-  if (error){
-    erro.textContent = 'E-mail ou senha não conferem.';
-    erro.classList.add('is-on');
-    return;
-  }
-  ------------------------------------------------------------------- */
-
-  erro.classList.remove('is-on');
-  document.getElementById('senha').value = '';
-  irPara('chat');
-});
-
-document.getElementById('btn-logout').onclick = () => {
-  // Na versão real: await supabase.auth.signOut();
-  irPara('login');
-};
-
-/* ============================================================
-   COMPOSER
-   ============================================================ */
 const ta = document.getElementById('composer-text');
 ta.addEventListener('input', () => {
   ta.style.height = 'auto';
@@ -838,49 +1073,36 @@ ta.addEventListener('keydown', e => {
 });
 function mandarTexto(){
   const t = ta.value.trim(); if (!t) return;
-  enviar('texto', t);
+  enviar({ kind:'text', body:t });
   ta.value = ''; ta.style.height = 'auto';
 }
 document.getElementById('btn-send').onclick = mandarTexto;
-document.getElementById('btn-sticker').onclick = () => abrirSheet('sheet-stickers');
+document.getElementById('btn-sticker').onclick  = () => abrirSheet('sheet-stickers');
 document.getElementById('btn-activity').onclick = () => abrirSheet('sheet-activity');
 document.getElementById('btn-theme-quick').onclick = () => abrirSheet('sheet-theme');
 
-/* foto: galeria no toque curto, câmera no toque longo */
 const fileInput = document.getElementById('file-input');
 const camInput  = document.getElementById('cam-input');
+const btnFoto   = document.getElementById('btn-photo');
 let tFoto;
-const btnFoto = document.getElementById('btn-photo');
 btnFoto.addEventListener('pointerdown', () => { tFoto = setTimeout(() => { camInput.click(); tFoto = null; }, 420); });
 btnFoto.addEventListener('pointerup',   () => { if (tFoto){ clearTimeout(tFoto); fileInput.click(); } });
 btnFoto.addEventListener('pointerleave',() => clearTimeout(tFoto));
-
 [fileInput, camInput].forEach(inp => inp.addEventListener('change', async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const url = await comprimir(f);
-  enviar('foto', url);
-  e.target.value = '';
-  // Na versão real: upload do blob para o bucket 'media' e depois o INSERT.
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) await mandarFoto(f);
 }));
 
-/* compressão: redimensiona para 1600px e converte para WebP */
-async function comprimir(file, max = 1600, qualidade = 0.8){
-  try{
-    const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
-    const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));
-    const c = document.createElement('canvas');
-    c.width  = Math.round(bmp.width  * escala);
-    c.height = Math.round(bmp.height * escala);
-    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    return c.toDataURL('image/webp', qualidade);
-  } catch {
-    return URL.createObjectURL(file); // HEIC que o navegador não decodifica
-  }
+function irPara(tela){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('is-active'));
+  document.getElementById('screen-' + tela).classList.add('is-active');
+  document.querySelectorAll('.tab').forEach(t =>
+    t.dataset.go === tela ? t.setAttribute('aria-current','page') : t.removeAttribute('aria-current'));
+  document.getElementById('tabbar').classList.toggle('is-hidden', tela === 'login');
+  if (tela === 'chat') elMsgs.scrollTop = elMsgs.scrollHeight;
 }
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => irPara(t.dataset.go));
 
-/* ============================================================
-   AJUSTES
-   ============================================================ */
 let esquemaAtual = store.get('esquema') || 'auto';
 document.getElementById('btn-scheme').onclick = () => {
   esquemaAtual = esquemaAtual === 'auto' ? 'light' : esquemaAtual === 'light' ? 'dark' : 'auto';
@@ -890,12 +1112,6 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (esquemaAtual === 'auto') aplicarEsquema('auto');
 });
 
-document.getElementById('btn-add-date').onclick = () =>
-  alert('No app real, isto abre o formulário e grava em important_dates.');
-
-/* ============================================================
-   TECLADO NO iOS — mantém o composer visível
-   ============================================================ */
 if (window.visualViewport){
   const app = document.getElementById('app');
   visualViewport.addEventListener('resize', () => {
@@ -905,17 +1121,17 @@ if (window.visualViewport){
 }
 
 /* ============================================================
-   INÍCIO
+   INÍCIO — sessão guardada pula o login
    ============================================================ */
 aplicarEsquema(esquemaAtual);
 aplicarTema(store.get('tema') || 'rosa');
-document.getElementById('peer-name').textContent = PEER.nome;
-document.getElementById('me-name').textContent   = ME.nome;
-document.getElementById('set-name').textContent  = ME.nome;
-renderMensagens();
 renderAtividades();
-renderDatas();
-irPara('login');
+
+(async function inicio(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if (session) await entrar();
+  else irPara('login');
+})();
 </script>
 </body>
 </html>
