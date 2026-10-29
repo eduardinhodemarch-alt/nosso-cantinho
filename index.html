@@ -308,6 +308,30 @@ input,textarea{font:inherit;color:inherit}
   transition:transform .12s var(--ease)}
 .reactbar button:active{transform:scale(1.25)}
 
+/* avatar com foto */
+.avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.avatar.editable{position:relative;cursor:pointer}
+.avatar.editable::after{content:'✎';position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;
+  border-radius:50%;background:var(--brand);color:#fff;font-size:12px;display:grid;place-items:center;
+  border:2.5px solid var(--bg)}
+
+/* abas da gaveta de figurinhas */
+.tabs{display:flex;gap:6px;margin-bottom:var(--s3)}
+.tabs button{flex:1;padding:9px;border-radius:12px;font-size:13.5px;font-weight:700;
+  background:var(--bg);color:var(--ink-soft);transition:background .15s,color .15s}
+.tabs button[aria-selected="true"]{background:var(--brand-soft);color:var(--ink)}
+.sticker img{width:76%;height:76%;object-fit:contain;display:block}
+.sticker.add{border:2px dashed var(--line);font-size:26px;color:var(--ink-soft);background:none}
+.sheet-empty{grid-column:1/-1;text-align:center;color:var(--ink-soft);font-size:13.5px;padding:var(--s5) 0;line-height:1.5}
+
+/* menu de origem da foto */
+.choice{display:flex;align-items:center;gap:var(--s4);padding:15px var(--s3);border-radius:14px;
+  width:100%;text-align:left;font-size:16px;font-weight:600;transition:background .15s}
+.choice:active{background:var(--surface-2)}
+.choice .ic{width:42px;height:42px;border-radius:13px;background:var(--brand-soft);
+  display:grid;place-items:center;font-size:21px;flex:none}
+.choice small{display:block;font-weight:400;font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 </head>
@@ -395,7 +419,8 @@ input,textarea{font:inherit;color:inherit}
   <section class="screen" id="screen-profile">
     <div class="page">
       <div class="profile-head">
-        <div class="avatar" id="me-avatar">☀️</div>
+        <button class="avatar editable" id="me-avatar" aria-label="Trocar foto de perfil">☀️</button>
+        <input type="file" id="avatar-input" accept="image/*" class="sr" aria-hidden="true">
         <div>
           <strong id="me-name">Sol</strong>
           <span id="me-bio">Faço o café. Você faz o resto.</span>
@@ -466,12 +491,26 @@ input,textarea{font:inherit;color:inherit}
   <div class="sheet" id="sheet-stickers" role="dialog" aria-label="Figurinhas">
     <div class="grabber"></div>
     <h2>Figurinhas</h2>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true"  data-pack="nossas">Nossas</button>
+      <button role="tab" aria-selected="false" data-pack="carinho">Carinho</button>
+      <button role="tab" aria-selected="false" data-pack="dia">Dia a dia</button>
+    </div>
     <div class="sticker-grid" id="sticker-grid"></div>
-    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:var(--s4);line-height:1.5">
-      Protótipo com emoji. Na versão real, cada figurinha é um arquivo em
-      <code>/stickers/&lt;pack&gt;/</code> com a licença registrada em
-      <code>docs/LICENCAS-FIGURINHAS.md</code>.
-    </p>
+    <input type="file" id="sticker-input" accept="image/*" class="sr" aria-hidden="true">
+  </div>
+
+  <div class="sheet" id="sheet-photo" role="dialog" aria-label="Enviar foto">
+    <div class="grabber"></div>
+    <h2>Enviar foto</h2>
+    <button class="choice" id="pick-camera">
+      <span class="ic">📸</span>
+      <span>Tirar foto agora<small>abre a câmera do celular</small></span>
+    </button>
+    <button class="choice" id="pick-gallery">
+      <span class="ic">🖼️</span>
+      <span>Escolher da galeria<small>fotos já salvas no aparelho</small></span>
+    </button>
   </div>
 
   <div class="sheet" id="sheet-activity" role="dialog" aria-label="Atividade">
@@ -519,7 +558,13 @@ const ATIVIDADES = [
   { id:'dormindo',   emoji:'😴', label:'dormindo',   horas:9 },
   { id:'em_casa',    emoji:'🏠', label:'em casa',    horas:null }
 ];
-const FIGURINHAS = ['🥰','🤗','😘','🫶','🌻','☕','🍜','🌙','✨','🐈','🧸','🎈','🫧','🍯','🪴','💌'];
+const PACKS = {
+  carinho: ['🥰','😘','🤗','🫶','💌','💞','😍','🥹','😚','🫂','💘','😳','🥺','😌','💍','🌹'],
+  dia:     ['☕','🍜','🍳','🛏️','🚿','🏃','🚗','🌙','☀️','🌧️','🛒','💤','📺','🧺','🪴','🐈']
+};
+const TWEMOJI = 'https://cdn.jsdelivr.net/npm/twemoji@14.0.2/assets/svg/';
+let FIG_NOSSAS = [];   // figurinhas que vocês dois enviaram
+let packAtual = 'nossas';
 const REACOES    = ['❤️','😂','😮','🥺','👍','🔥'];
 
 const store = {
@@ -627,12 +672,14 @@ async function entrar(){
 }
 
 async function carregarPerfis(){
-  const { data } = await sb.from('profiles').select('id, display_name, theme, bio');
+  const { data } = await sb.from('profiles').select('id, display_name, theme, bio, avatar_path');
   if (!data) return;
   const meu   = data.find(p => p.id === ME.id);
   const outro = data.find(p => p.id !== ME.id);
   if (meu){
     ME.nome = meu.display_name;
+    ME.avatar_path = meu.avatar_path;
+    await pintarAvatar('me-avatar', meu.avatar_path, '☀️');
     document.getElementById('me-name').textContent  = meu.display_name;
     document.getElementById('set-name').textContent = meu.display_name;
     if (meu.bio) document.getElementById('me-bio').textContent = meu.bio;
@@ -642,6 +689,7 @@ async function carregarPerfis(){
     PEER.id = outro.id;
     PEER.nome = outro.display_name;
     document.getElementById('peer-name').textContent = outro.display_name;
+    await pintarAvatar('peer-avatar', outro.avatar_path, '🌙', true);
   }
 }
 
@@ -668,6 +716,9 @@ async function normalizar(m){
   };
   const path = m.message_attachments?.[0]?.path;
   if (path) item.url = await urlDaFoto(path);
+  if (m.kind === 'sticker' && String(m.sticker_id).startsWith('custom:')){
+    item.url = await urlAssinada('stickers', m.sticker_id.slice(7));
+  }
   return item;
 }
 
@@ -679,6 +730,43 @@ function agrupar(linhas){
   });
   return [...mapa.values()];
 }
+
+/* ============================================================
+   FOTO DE PERFIL
+   ============================================================ */
+async function pintarAvatar(elId, path, fallback, manterPonto = false){
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const ponto = manterPonto ? '<span class="dot"></span>' : '';
+  if (!path){ el.innerHTML = fallback + ponto; return; }
+  const url = await urlAssinada('avatars', path);
+  el.innerHTML = ponto;
+  const img = document.createElement('img');
+  img.src = url; img.alt = '';
+  img.onerror = () => { el.innerHTML = fallback + ponto; };
+  el.prepend(img);
+}
+
+document.getElementById('me-avatar').onclick = () =>
+  document.getElementById('avatar-input').click();
+
+document.getElementById('avatar-input').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+
+  let blob;
+  try { blob = await comprimir(f, 512, 0.85); }
+  catch { alert('Não consegui ler essa imagem.'); return; }
+
+  const path = ME.id + '/avatar-' + Date.now() + '.webp';
+  const { error } = await sb.storage.from('avatars')
+    .upload(path, blob, { contentType:'image/webp', upsert:true });
+  if (error){ alert('A foto não subiu.'); return; }
+
+  await sb.from('profiles').update({ avatar_path: path }).eq('id', ME.id);
+  ME.avatar_path = path;
+  await pintarAvatar('me-avatar', path, '☀️');
+});
 
 /* ============================================================
    REALTIME
@@ -701,6 +789,9 @@ function abrirCanal(){
     .on('postgres_changes',
         { event:'*', schema:'public', table:'user_activities' },
         () => carregarAtividades())
+    .on('postgres_changes',
+        { event:'UPDATE', schema:'public', table:'profiles' },
+        () => carregarPerfis())
     .subscribe();
 
   // O Realtime cai quando o app vai para segundo plano. Ao voltar,
@@ -757,6 +848,17 @@ function renderMensagens(){
     if (m.tipo === 'foto'){
       const img = document.createElement('img');
       img.src = m.url || ''; img.alt = 'Foto'; img.loading = 'lazy';
+      b.appendChild(img);
+    } else if (m.tipo === 'sticker'){
+      const img = document.createElement('img');
+      img.alt = m.texto || 'figurinha'; img.loading = 'lazy';
+      img.style.cssText = 'width:120px;height:120px;object-fit:contain;display:block';
+      if (m.url){                       // figurinha de vocês
+        img.src = m.url;
+      } else {                          // emoji do pacote aberto
+        img.src = twemojiUrl(m.texto);
+        img.onerror = () => { b.textContent = m.texto; b.appendChild(meta); };
+      }
       b.appendChild(img);
     } else {
       b.appendChild(document.createTextNode(m.texto || ''));
@@ -835,13 +937,22 @@ async function enviar({ kind, body = null, sticker_id = null, path = null, mime 
 /* ============================================================
    FOTOS
    ============================================================ */
-async function urlDaFoto(path){
-  const cache = urlsAssinadas.get(path);
+async function urlAssinada(bucket, path){
+  const chave = bucket + '/' + path;
+  const cache = urlsAssinadas.get(chave);
   if (cache && cache.expira > Date.now()) return cache.url;
-  const { data } = await sb.storage.from('media').createSignedUrl(path, 3600);
+  const { data } = await sb.storage.from(bucket).createSignedUrl(path, 3600);
   if (!data) return '';
-  urlsAssinadas.set(path, { url:data.signedUrl, expira: Date.now() + 3300000 });
+  urlsAssinadas.set(chave, { url:data.signedUrl, expira: Date.now() + 3300000 });
   return data.signedUrl;
+}
+const urlDaFoto = (path) => urlAssinada('media', path);
+
+/* emoji -> svg do Twemoji (CC-BY). Se o CDN falhar, cai no emoji do sistema. */
+function twemojiUrl(emoji){
+  const cps = [...emoji].map(c => c.codePointAt(0).toString(16))
+                        .filter(c => c !== 'fe0f').join('-');
+  return TWEMOJI + cps + '.svg';
 }
 
 async function comprimir(file, max = 1600, q = 0.8){
@@ -1040,12 +1151,102 @@ scrim.addEventListener('click', fecharSheets);
 document.addEventListener('keydown', e => { if (e.key === 'Escape'){ fecharSheets(); fecharReactbar(); } });
 
 const grid = document.getElementById('sticker-grid');
-FIGURINHAS.forEach(f => {
-  const b = document.createElement('button');
-  b.className = 'sticker'; b.textContent = f;
-  b.setAttribute('aria-label','Enviar figurinha ' + f);
-  b.onclick = () => { enviar({ kind:'sticker', sticker_id:f }); fecharSheets(); };
-  grid.appendChild(b);
+
+document.querySelectorAll('.tabs [data-pack]').forEach(t => {
+  t.onclick = () => {
+    packAtual = t.dataset.pack;
+    document.querySelectorAll('.tabs [data-pack]').forEach(x =>
+      x.setAttribute('aria-selected', String(x === t)));
+    renderFigurinhas();
+  };
+});
+
+async function carregarFigurinhasNossas(){
+  const { data } = await sb.from('custom_stickers')
+    .select('id, path, added_by').eq('space_id', SPACE)
+    .order('created_at', { ascending:false });
+  FIG_NOSSAS = await Promise.all((data || []).map(async f => ({
+    id: f.id, path: f.path, url: await urlAssinada('stickers', f.path)
+  })));
+}
+
+function renderFigurinhas(){
+  grid.innerHTML = '';
+
+  if (packAtual === 'nossas'){
+    const add = document.createElement('button');
+    add.className = 'sticker add'; add.textContent = '+';
+    add.setAttribute('aria-label','Criar figurinha a partir de uma foto');
+    add.onclick = () => document.getElementById('sticker-input').click();
+    grid.appendChild(add);
+
+    if (!FIG_NOSSAS.length){
+      const vazio = document.createElement('div');
+      vazio.className = 'sheet-empty';
+      vazio.textContent = 'Nenhuma ainda. Toque no + e escolha uma foto — ela vira figurinha de vocês dois.';
+      grid.appendChild(vazio);
+      return;
+    }
+
+    FIG_NOSSAS.forEach(f => {
+      const b = document.createElement('button');
+      b.className = 'sticker';
+      b.setAttribute('aria-label','Enviar figurinha');
+      const img = document.createElement('img');
+      img.src = f.url; img.alt = ''; img.loading = 'lazy';
+      b.appendChild(img);
+      b.onclick = () => { enviar({ kind:'sticker', sticker_id:'custom:' + f.path }); fecharSheets(); };
+      ligarApagarFigurinha(b, f);
+      grid.appendChild(b);
+    });
+    return;
+  }
+
+  PACKS[packAtual].forEach(e => {
+    const b = document.createElement('button');
+    b.className = 'sticker';
+    b.setAttribute('aria-label','Enviar figurinha ' + e);
+    const img = document.createElement('img');
+    img.src = twemojiUrl(e); img.alt = e; img.loading = 'lazy';
+    img.onerror = () => { b.textContent = e; };
+    b.appendChild(img);
+    b.onclick = () => { enviar({ kind:'sticker', sticker_id:e }); fecharSheets(); };
+    grid.appendChild(b);
+  });
+}
+
+/* toque longo numa figurinha nossa remove do pacote */
+function ligarApagarFigurinha(el, f){
+  let t;
+  el.addEventListener('pointerdown', () => {
+    t = setTimeout(async () => {
+      if (!confirm('Tirar esta figurinha do pacote?')) return;
+      await sb.from('custom_stickers').delete().eq('id', f.id);
+      await carregarFigurinhasNossas();
+      renderFigurinhas();
+    }, 600);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev =>
+    el.addEventListener(ev, () => clearTimeout(t)));
+}
+
+document.getElementById('sticker-input').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+
+  let blob;
+  try { blob = await comprimir(f, 512, 0.9); }
+  catch { alert('Não consegui ler essa imagem.'); return; }
+
+  const path = SPACE + '/' + crypto.randomUUID() + '.webp';
+  const { error } = await sb.storage.from('stickers')
+    .upload(path, blob, { contentType:'image/webp' });
+  if (error){ alert('A figurinha não subiu.'); return; }
+
+  await sb.from('custom_stickers')
+    .insert({ space_id:SPACE, path, added_by:ME.id });
+  await carregarFigurinhasNossas();
+  renderFigurinhas();
 });
 
 const quick = document.getElementById('swatches-quick');
@@ -1077,17 +1278,21 @@ function mandarTexto(){
   ta.value = ''; ta.style.height = 'auto';
 }
 document.getElementById('btn-send').onclick = mandarTexto;
-document.getElementById('btn-sticker').onclick  = () => abrirSheet('sheet-stickers');
+document.getElementById('btn-sticker').onclick = async () => {
+  abrirSheet('sheet-stickers');
+  renderFigurinhas();
+  await carregarFigurinhasNossas();
+  renderFigurinhas();
+};
 document.getElementById('btn-activity').onclick = () => abrirSheet('sheet-activity');
 document.getElementById('btn-theme-quick').onclick = () => abrirSheet('sheet-theme');
 
 const fileInput = document.getElementById('file-input');
 const camInput  = document.getElementById('cam-input');
 const btnFoto   = document.getElementById('btn-photo');
-let tFoto;
-btnFoto.addEventListener('pointerdown', () => { tFoto = setTimeout(() => { camInput.click(); tFoto = null; }, 420); });
-btnFoto.addEventListener('pointerup',   () => { if (tFoto){ clearTimeout(tFoto); fileInput.click(); } });
-btnFoto.addEventListener('pointerleave',() => clearTimeout(tFoto));
+btnFoto.onclick = () => abrirSheet('sheet-photo');
+document.getElementById('pick-camera').onclick  = () => { fecharSheets(); camInput.click(); };
+document.getElementById('pick-gallery').onclick = () => { fecharSheets(); fileInput.click(); };
 [fileInput, camInput].forEach(inp => inp.addEventListener('change', async (e) => {
   const f = e.target.files[0]; e.target.value = '';
   if (f) await mandarFoto(f);
