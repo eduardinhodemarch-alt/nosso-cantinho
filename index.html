@@ -324,6 +324,51 @@ input,textarea{font:inherit;color:inherit}
 .sticker.add{border:2px dashed var(--line);font-size:26px;color:var(--ink-soft);background:none}
 .sheet-empty{grid-column:1/-1;text-align:center;color:var(--ink-soft);font-size:13.5px;padding:var(--s5) 0;line-height:1.5}
 
+/* atalhos rápidos no chat */
+.quick{display:flex;gap:var(--s2);margin:0 var(--s3) var(--s2)}
+.quick button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px;border-radius:var(--r-card);background:var(--surface);border:1px solid var(--line);
+  font-size:13.5px;font-weight:700;transition:transform .12s var(--ease)}
+.quick button:active{transform:scale(.97)}
+
+/* categorias de emoji */
+.cats{display:flex;gap:4px;overflow-x:auto;margin-bottom:var(--s2);padding-bottom:4px}
+.cats button{flex:none;width:38px;height:34px;border-radius:10px;font-size:18px;
+  display:grid;place-items:center;background:var(--bg)}
+.cats button[aria-selected="true"]{background:var(--brand-soft)}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.emoji-grid button{aspect-ratio:1;border-radius:9px;display:grid;place-items:center;font-size:22px}
+.emoji-grid button:active{background:var(--surface-2)}
+.emoji-grid img{width:26px;height:26px}
+
+/* formulário de plano */
+.form-row{margin-bottom:var(--s3)}
+.form-row label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:5px}
+.form-row input,.form-row textarea{width:100%;padding:12px var(--s3);font-size:16px;border-radius:12px;
+  background:var(--bg);border:1.5px solid var(--line)}
+.form-row textarea{resize:none;min-height:70px}
+.form-duo{display:flex;gap:var(--s2)}
+.form-duo .form-row{flex:1}
+
+/* cartão de plano */
+.plan{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);
+  overflow:hidden;margin-bottom:var(--s3)}
+.plan img.cover{width:100%;height:150px;object-fit:cover;display:block}
+.plan .body{padding:var(--s4)}
+.plan h3{margin:0 0 4px;font-size:17px;font-weight:700}
+.plan .when{font-size:13.5px;color:var(--ink-soft);margin-bottom:var(--s3)}
+.plan .desc{font-size:14.5px;line-height:1.45;margin-bottom:var(--s3)}
+.plan .facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
+.plan .fact{background:var(--bg);border-radius:var(--r-pill);padding:4px 11px;font-size:12.5px;font-weight:600}
+.plan .acts{display:flex;gap:var(--s2)}
+.plan .acts button{flex:1;padding:11px;border-radius:12px;font-weight:700;font-size:14.5px}
+.plan .yes{background:var(--brand);color:#fff}
+.plan .no{background:var(--surface-2);color:var(--ink)}
+.badge{display:inline-block;padding:4px 11px;border-radius:var(--r-pill);font-size:12px;font-weight:700}
+.badge.pendente{background:var(--surface-2);color:var(--ink-soft)}
+.badge.aceito{background:var(--brand-soft);color:var(--bubble-mine-ink)}
+.badge.recusado{background:var(--surface-2);color:var(--ink-soft);text-decoration:line-through}
+
 /* menu de origem da foto */
 .choice{display:flex;align-items:center;gap:var(--s4);padding:15px var(--s3);border-radius:14px;
   width:100%;text-align:left;font-size:16px;font-weight:600;transition:background .15s}
@@ -387,6 +432,11 @@ input,textarea{font:inherit;color:inherit}
       <button class="icon-btn" id="btn-activity" aria-label="Mudar atividade" style="margin-left:auto">✎</button>
     </div>
 
+    <div class="quick">
+      <button id="btn-cinema">🎬 Cinema</button>
+      <button id="btn-novo-plano">📋 Novo plano</button>
+    </div>
+
     <div class="messages" id="messages" role="log" aria-live="polite"></div>
 
     <div class="composer">
@@ -410,6 +460,18 @@ input,textarea{font:inherit;color:inherit}
       <p class="lead">O que está chegando.</p>
       <div id="dates-list"></div>
       <button class="btn-primary" id="btn-add-date">Adicionar data</button>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PLANOS
+       ========================================================= -->
+  <section class="screen" id="screen-plans">
+    <div class="page">
+      <h1>Planos</h1>
+      <p class="lead">Um propõe, o outro decide.</p>
+      <div id="plans-list"></div>
+      <button class="btn-primary" id="btn-novo-plano-2">Criar um plano</button>
     </div>
   </section>
 
@@ -479,6 +541,7 @@ input,textarea{font:inherit;color:inherit}
        ========================================================= -->
   <nav class="tabbar is-hidden" id="tabbar">
     <button class="tab" data-go="chat" aria-current="page"><span class="ic">💬</span>Conversa</button>
+    <button class="tab" data-go="plans"><span class="ic">📋</span>Planos</button>
     <button class="tab" data-go="dates"><span class="ic">📅</span>Datas</button>
     <button class="tab" data-go="profile"><span class="ic">👤</span>Perfil</button>
   </nav>
@@ -495,9 +558,51 @@ input,textarea{font:inherit;color:inherit}
       <button role="tab" aria-selected="true"  data-pack="nossas">Nossas</button>
       <button role="tab" aria-selected="false" data-pack="carinho">Carinho</button>
       <button role="tab" aria-selected="false" data-pack="dia">Dia a dia</button>
+      <button role="tab" aria-selected="false" data-pack="emojis">Emojis</button>
     </div>
+    <div class="cats" id="emoji-cats" style="display:none"></div>
     <div class="sticker-grid" id="sticker-grid"></div>
     <input type="file" id="sticker-input" accept="image/*" class="sr" aria-hidden="true">
+  </div>
+
+  <div class="sheet" id="sheet-plan" role="dialog" aria-label="Novo plano">
+    <div class="grabber"></div>
+    <h2>Novo plano</h2>
+    <div class="form-row">
+      <label for="pl-title">O que é</label>
+      <input id="pl-title" type="text" placeholder="Cinema: o filme novo" maxlength="80">
+    </div>
+    <div class="form-duo">
+      <div class="form-row">
+        <label for="pl-date">Dia</label>
+        <input id="pl-date" type="date">
+      </div>
+      <div class="form-row">
+        <label for="pl-time">Horário</label>
+        <input id="pl-time" type="time">
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="pl-place">Onde</label>
+      <input id="pl-place" type="text" placeholder="Cine + Arte, Shopping Della" maxlength="100">
+    </div>
+    <div class="form-row">
+      <label for="pl-amount">Quanto custa (opcional)</label>
+      <input id="pl-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="80,00">
+    </div>
+    <div class="form-row">
+      <label for="pl-desc">O momento</label>
+      <textarea id="pl-desc" placeholder="Sessão das 20h, jantar antes no food court." maxlength="400"></textarea>
+    </div>
+    <div class="form-row">
+      <label>Imagem (opcional)</label>
+      <button class="choice" id="pl-pick-img" style="padding:11px var(--s3)">
+        <span class="ic">🖼️</span>
+        <span id="pl-img-label">Escolher da galeria<small>pôster, foto do lugar, o que for</small></span>
+      </button>
+      <input type="file" id="pl-img" accept="image/*" class="sr" aria-hidden="true">
+    </div>
+    <button class="btn-primary" id="pl-send">Enviar proposta</button>
   </div>
 
   <div class="sheet" id="sheet-photo" role="dialog" aria-label="Enviar foto">
@@ -563,6 +668,19 @@ const PACKS = {
   dia:     ['☕','🍜','🍳','🛏️','🚿','🏃','🚗','🌙','☀️','🌧️','🛒','💤','📺','🧺','🪴','🐈']
 };
 const TWEMOJI = 'https://cdn.jsdelivr.net/npm/twemoji@14.0.2/assets/svg/';
+
+const EMOJIS = {
+  '😀': ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','😮‍💨','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟','🙁','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','💩','🤡','👻','👽','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾'],
+  '👋': ['👋','🤚','✋','🖖','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦵','🦶','👂','👃','🧠','🫀','🫁','🦷','👀','👁️','👅','👄','💋','🧑','👶','🧒','👦','👧','🧑‍🦱','👨','👩','🧓','👴','👵','🙍','🙎','🙅','🙆','💁','🙋','🧏','🙇','🤦','🤷','👨‍⚕️','👩‍⚕️','👨‍🍳','👩‍🍳','👨‍💻','👩‍💻','🕺','💃','👯','🧖','🧘','🛀','🛌','👭','👫','👬','💑','💏','👪'],
+  '🐶': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐒','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪲','🦋','🐌','🐞','🐜','🕷️','🐢','🐍','🦎','🐙','🦑','🦐','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🦓','🦍','🐘','🦛','🐪','🦒','🦘','🐃','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐈','🐓','🦃','🦚','🦜','🦢','🕊️','🐇','🦝','🦨','🦔','🌵','🎄','🌲','🌳','🌴','🌱','🌿','☘️','🍀','🎋','🍃','🍂','🍁','🌾','💐','🌷','🌹','🥀','🌺','🌸','🌼','🌻','🌞','🌝','🌛','🌜','🌚','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌙','🌎','⭐','🌟','✨','⚡','☄️','💥','🔥','🌪️','🌈','☀️','🌤️','⛅','☁️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','💨','💧','💦','🌊'],
+  '🍕': ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🌽','🥕','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🍘','🍥','🥠','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','☕','🫖','🍵','🥤','🧋','🧃','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊','🥄','🍴','🍽️'],
+  '⚽': ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🥅','🏒','🏑','🥍','🏏','🪃','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🪂','🏋️','🤼','🤸','⛹️','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🤽','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🎗️','🎫','🎟️','🎪','🤹','🎭','🩰','🎨','🎬','🎤','🎧','🎼','🎹','🥁','🎷','🎺','🎸','🪕','🎻','🎲','♟️','🎯','🎳','🎮','🎰','🧩'],
+  '🚗': ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🦯','🦽','🛴','🚲','🛵','🏍️','🛺','🚨','🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️','🛫','🛬','🛩️','💺','🛰️','🚀','🛸','🚁','🛶','⛵','🚤','🛥️','🛳️','⛴️','🚢','⚓','⛽','🚧','🚦','🚥','🗺️','🗿','🗽','🗼','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛱️','🏖️','🏝️','🏜️','🌋','⛰️','🏔️','🗻','🏕️','⛺','🏠','🏡','🏘️','🏢','🏬','🏣','🏤','🏥','🏦','🏨','🏪','🏫','🏩','💒','🏛️','⛪','🕌','🕍','🛕','🌃','🏙️','🌄','🌅','🌆','🌇','🌉'],
+  '❤️': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❓','❕','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅'],
+  '🎁': ['🎁','🎀','🎊','🎉','🎈','🪅','🧧','✉️','💌','📩','📨','📧','💘','📦','📫','📮','📜','📃','📄','📑','📊','📈','📉','🗒️','🗓️','📆','📅','🗑️','📇','🗃️','🗳️','🗄️','📋','📁','📂','🗂️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🧷','🔗','📎','🖇️','📐','📏','🧮','📌','📍','✂️','🖊️','🖋️','✒️','🖌️','🖍️','📝','✏️','🔍','🔎','🔏','🔐','🔒','🔓','💰','💴','💵','💶','💷','🪙','💸','💳','🧾','⌚','📱','📲','💻','⌨️','🖥️','🖨️','🖱️','💽','💾','💿','📀','🎥','📞','☎️','📟','📠','📺','📻','🎙️','⏰','⏱️','⌛','⏳','🔋','🔌','💡','🔦','🕯️','🧯','🛒','🎒','🧳','☂️','🔑','🗝️','🚪','🪑','🛋️','🛏️','🧸','🖼️','🪞','🪟','🛍️']
+};
+const CATS = Object.keys(EMOJIS);
+let catAtual = CATS[0];
 let FIG_NOSSAS = [];   // figurinhas que vocês dois enviaram
 let packAtual = 'nossas';
 const REACOES    = ['❤️','😂','😮','🥺','👍','🔥'];
@@ -667,6 +785,7 @@ async function entrar(){
   await carregarMensagens();
   await carregarAtividades();
   await carregarDatas();
+  await carregarPlanos();
   abrirCanal();
   irPara('chat');
 }
@@ -792,6 +911,9 @@ function abrirCanal(){
     .on('postgres_changes',
         { event:'UPDATE', schema:'public', table:'profiles' },
         () => carregarPerfis())
+    .on('postgres_changes',
+        { event:'*', schema:'public', table:'plans', filter:'space_id=eq.' + SPACE },
+        () => carregarPlanos())
     .subscribe();
 
   // O Realtime cai quando o app vai para segundo plano. Ao voltar,
@@ -1086,6 +1208,205 @@ function renderAtividades(){
 }
 
 /* ============================================================
+   CINEMA — abre a programação do Shopping Della
+   ============================================================ */
+const URL_CINEMA = 'https://www.shoppingdella.com.br/cinema';
+
+document.getElementById('btn-cinema').onclick = () => {
+  window.open(URL_CINEMA, '_blank', 'noopener');
+};
+
+/* ============================================================
+   PLANOS — um propõe, o outro aceita ou recusa
+   ============================================================ */
+let planos = [];
+let imagemDoPlano = null;
+
+function abrirFormPlano(){
+  ['pl-title','pl-date','pl-time','pl-place','pl-amount','pl-desc'].forEach(id =>
+    document.getElementById(id).value = '');
+  imagemDoPlano = null;
+  document.getElementById('pl-img-label').innerHTML =
+    'Escolher da galeria<small>pôster, foto do lugar, o que for</small>';
+  abrirSheet('sheet-plan');
+}
+document.getElementById('btn-novo-plano').onclick   = abrirFormPlano;
+document.getElementById('btn-novo-plano-2').onclick = abrirFormPlano;
+
+document.getElementById('pl-pick-img').onclick = () => document.getElementById('pl-img').click();
+document.getElementById('pl-img').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  imagemDoPlano = f;
+  document.getElementById('pl-img-label').innerHTML =
+    'Imagem escolhida<small>toque para trocar</small>';
+});
+
+document.getElementById('pl-send').onclick = async (ev) => {
+  const titulo = document.getElementById('pl-title').value.trim();
+  const dia    = document.getElementById('pl-date').value;
+  if (!titulo || !dia){ alert('Falta o nome do plano ou o dia.'); return; }
+
+  const botao = ev.currentTarget;
+  botao.disabled = true; botao.textContent = 'Enviando…';
+
+  try {
+    let image_path = null;
+    if (imagemDoPlano){
+      const blob = await comprimir(imagemDoPlano, 1200, 0.8);
+      image_path = SPACE + '/plans/' + crypto.randomUUID() + '.webp';
+      const { error } = await sb.storage.from('media')
+        .upload(image_path, blob, { contentType:'image/webp' });
+      if (error) image_path = null;
+    }
+
+    const hora  = document.getElementById('pl-time').value || null;
+    const valor = document.getElementById('pl-amount').value;
+
+    const { error } = await sb.from('plans').insert({
+      space_id: SPACE, created_by: ME.id,
+      title: titulo,
+      description: document.getElementById('pl-desc').value.trim() || null,
+      date: dia, time: hora,
+      place: document.getElementById('pl-place').value.trim() || null,
+      amount: valor ? Number(valor) : null,
+      image_path
+    });
+    if (error) throw error;
+
+    await enviar({ kind:'text', body:'📋 Novo plano: ' + titulo + ' — ' + formatarDia(dia) });
+    fecharSheets();
+    await carregarPlanos();
+    irPara('plans');
+  } catch {
+    alert('Não consegui salvar o plano.');
+  } finally {
+    botao.disabled = false; botao.textContent = 'Enviar proposta';
+  }
+};
+
+function formatarDia(iso){
+  return new Date(iso + 'T00:00:00')
+    .toLocaleDateString('pt-BR', { weekday:'short', day:'numeric', month:'long' });
+}
+
+async function carregarPlanos(){
+  const { data } = await sb.from('plans')
+    .select('*').eq('space_id', SPACE)
+    .order('date', { ascending:true });
+  planos = await Promise.all((data || []).map(async p => ({
+    ...p, url: p.image_path ? await urlDaFoto(p.image_path) : null
+  })));
+  renderPlanos();
+  marcarPendentes();
+}
+
+function marcarPendentes(){
+  const n = planos.filter(p => p.status === 'pendente' && p.created_by !== ME.id).length;
+  const aba = document.querySelector('.tab[data-go="plans"]');
+  if (aba) aba.querySelector('.ic').textContent = n ? '📬' : '📋';
+}
+
+function renderPlanos(){
+  const el = document.getElementById('plans-list');
+  el.innerHTML = '';
+
+  if (!planos.length){
+    el.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft)">' +
+      'Nenhum plano ainda. Proponha o primeiro.</div>';
+    return;
+  }
+
+  planos.forEach(p => {
+    const meu = p.created_by === ME.id;
+    const card = document.createElement('div');
+    card.className = 'plan';
+
+    if (p.url){
+      const img = document.createElement('img');
+      img.className = 'cover'; img.src = p.url; img.alt = ''; img.loading = 'lazy';
+      card.appendChild(img);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'body';
+
+    const h = document.createElement('h3');
+    h.textContent = p.title;
+    body.appendChild(h);
+
+    const when = document.createElement('div');
+    when.className = 'when';
+    when.textContent = formatarDia(p.date) + (p.time ? ' · ' + p.time.slice(0,5) : '');
+    body.appendChild(when);
+
+    if (p.description){
+      const d = document.createElement('div');
+      d.className = 'desc'; d.textContent = p.description;
+      body.appendChild(d);
+    }
+
+    const facts = document.createElement('div');
+    facts.className = 'facts';
+    if (p.place)  facts.appendChild(chip('📍 ' + p.place));
+    if (p.amount) facts.appendChild(chip('💸 R$ ' + Number(p.amount).toFixed(2).replace('.',',')));
+    facts.appendChild(chip((meu ? 'você propôs' : PEER.nome + ' propôs')));
+    body.appendChild(facts);
+
+    if (p.status === 'pendente' && !meu){
+      const acts = document.createElement('div');
+      acts.className = 'acts';
+      const sim = document.createElement('button');
+      sim.className = 'yes'; sim.textContent = 'Aceitar';
+      sim.onclick = () => responder(p, 'aceito');
+      const nao = document.createElement('button');
+      nao.className = 'no'; nao.textContent = 'Agora não';
+      nao.onclick = () => responder(p, 'recusado');
+      acts.append(sim, nao);
+      body.appendChild(acts);
+    } else {
+      const b = document.createElement('span');
+      b.className = 'badge ' + p.status;
+      b.textContent = { pendente:'esperando resposta', aceito:'combinado',
+                        recusado:'fica pra próxima', cancelado:'cancelado' }[p.status];
+      body.appendChild(b);
+      if (p.reply_note){
+        const nota = document.createElement('div');
+        nota.className = 'desc'; nota.style.marginTop = '10px';
+        nota.textContent = '“' + p.reply_note + '”';
+        body.appendChild(nota);
+      }
+    }
+
+    card.appendChild(body);
+    el.appendChild(card);
+  });
+}
+
+function chip(txt){
+  const s = document.createElement('span');
+  s.className = 'fact'; s.textContent = txt;
+  return s;
+}
+
+async function responder(p, status){
+  const nota = status === 'recusado'
+    ? prompt('Quer dizer o porquê? (opcional)') : null;
+
+  const { error } = await sb.from('plans').update({
+    status, responded_by: ME.id,
+    responded_at: new Date().toISOString(),
+    reply_note: nota || null
+  }).eq('id', p.id);
+
+  if (error){ alert('Não consegui responder.'); return; }
+
+  await enviar({ kind:'text',
+    body: (status === 'aceito' ? '✅ Aceitei: ' : '🙈 Fica pra próxima: ') + p.title });
+  await carregarPlanos();
+}
+
+/* ============================================================
    DATAS
    ============================================================ */
 function diasAte(iso){
@@ -1172,6 +1493,37 @@ async function carregarFigurinhasNossas(){
 
 function renderFigurinhas(){
   grid.innerHTML = '';
+  const cats = document.getElementById('emoji-cats');
+  cats.style.display = packAtual === 'emojis' ? 'flex' : 'none';
+  grid.className = packAtual === 'emojis' ? 'emoji-grid' : 'sticker-grid';
+
+  if (packAtual === 'emojis'){
+    if (!cats.children.length){
+      CATS.forEach(c => {
+        const b = document.createElement('button');
+        b.textContent = c;
+        b.setAttribute('aria-selected', String(c === catAtual));
+        b.setAttribute('aria-label', 'Categoria ' + c);
+        b.onclick = () => {
+          catAtual = c;
+          [...cats.children].forEach(x => x.setAttribute('aria-selected', String(x === b)));
+          renderFigurinhas();
+        };
+        cats.appendChild(b);
+      });
+    }
+    EMOJIS[catAtual].forEach(e => {
+      const b = document.createElement('button');
+      b.setAttribute('aria-label', 'Inserir ' + e);
+      const img = document.createElement('img');
+      img.src = twemojiUrl(e); img.alt = e; img.loading = 'lazy';
+      img.onerror = () => { b.textContent = e; };
+      b.appendChild(img);
+      b.onclick = () => inserirEmoji(e);
+      grid.appendChild(b);
+    });
+    return;
+  }
 
   if (packAtual === 'nossas'){
     const add = document.createElement('button');
@@ -1213,6 +1565,15 @@ function renderFigurinhas(){
     b.onclick = () => { enviar({ kind:'sticker', sticker_id:e }); fecharSheets(); };
     grid.appendChild(b);
   });
+}
+
+/* emoji entra no texto da mensagem, sem fechar a gaveta */
+function inserirEmoji(e){
+  const ta = document.getElementById('composer-text');
+  const i = ta.selectionStart ?? ta.value.length;
+  ta.value = ta.value.slice(0, i) + e + ta.value.slice(ta.selectionEnd ?? i);
+  ta.selectionStart = ta.selectionEnd = i + e.length;
+  if (navigator.vibrate) navigator.vibrate(6);
 }
 
 /* toque longo numa figurinha nossa remove do pacote */
